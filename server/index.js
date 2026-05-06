@@ -21,10 +21,17 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 const server = http.createServer(app);
 
+// Allowed origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://billing-system-gold-beta.vercel.app',
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 // Socket.io setup with CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -41,13 +48,19 @@ app.use(helmet({ contentSecurityPolicy: false }));
 
 // CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 500,
   message: { error: 'Too many requests, please try again later.' },
 });
@@ -79,7 +92,6 @@ app.use('/api/admin', adminRoutes);
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
-  // Join role-based rooms
   socket.on('join_room', (room) => {
     socket.join(room);
     console.log(`Socket ${socket.id} joined room: ${room}`);
@@ -105,8 +117,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
 });
 
 module.exports = { app, io };
